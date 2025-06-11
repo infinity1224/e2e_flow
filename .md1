@@ -1,0 +1,61 @@
+```mermaid
+graph TD
+    A[Developer Pushes Code to GitHub] -->|Webhook| B{Jenkins CI Pipeline}
+    B --> C[Pull Code]
+    C --> D[SonarQube Scan]
+    D -->|Pass Quality Gates| E[Maven Build: mvn clean package]
+    E --> F[Create Docker Image]
+    F --> G[Trivy Scan]
+    G -->|No Critical Issues| H[Push Image to Docker Hub]
+    H --> I[CI Pipeline Ends]
+
+    I --> J[Update Manifests in GitHub Repo]
+    J --> K{ArgoCD Monitors Manifests Repo}
+
+    subgraph Dev Environment
+        K -->|Dev Manifest| L[ArgoCD Deploys to Dev Namespace]
+        L --> M[Automated Tests]
+        M --> N[Monitor with Prometheus & Grafana]
+    end
+
+    subgraph Test Environment
+        N -->|Dev Validated| O[Update Test Manifest + PR]
+        O --> P[ArgoCD Deploys to Test Namespace]
+        P --> Q[Integration Tests]
+        Q --> R[Monitor with Prometheus & Grafana]
+    end
+
+    subgraph Staging Environment
+        R -->|Test Validated| S[Update Staging Manifest + PR]
+        S --> T[ArgoCD Deploys to Staging Namespace]
+        T --> U[Load/Stress Tests]
+        U --> V[Monitor with Prometheus & Grafana]
+    end
+
+    subgraph Prod Environment
+        V -->|Staging Validated| W[Update Prod-Green Manifest + PR]
+        W --> X[ArgoCD Deploys to Prod-Green Namespace]
+        X --> Y[Run Tests in Prod-Green]
+        Y --> Z[Monitor with Prometheus & Grafana]
+        Z -->|Validated| AA[Update Ingress to Switch Traffic to Prod-Green]
+        AA --> AB[Prod-Green Live]
+        AB --> AC[Monitor with Prometheus & Grafana]
+        AC -->|Issues Detected| AD[Revert Ingress to Prod-Blue]
+        AB --> AE[Update Prod-Blue for Next Release]
+        X --> AF[Prod-Blue Remains Active as Fallback]
+    end
+
+    subgraph AWS Infrastructure
+        L --> AG[KOPS Kubernetes Cluster]
+        P --> AG
+        T --> AG
+        X --> AG
+        AF --> AG
+        AG --> AH[AWS ALB for Traffic Routing]
+        AH --> AI[Prod-Blue Service]
+        AH --> AJ[Prod-Green Service]
+        AG --> AK[Metrics Server]
+        AK --> AL[Prometheus]
+        AL --> AM[Grafana]
+    end
+```
